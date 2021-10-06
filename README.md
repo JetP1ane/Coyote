@@ -1,4 +1,3 @@
-#Coyote
 
 Coyote is a Python3 rendition of the Fenrir project by Valerian Legrand. 
 
