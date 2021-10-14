@@ -22,12 +22,8 @@ class Coyote:
 		self.s = None
 		self.MANGLE = None
 		self.hostip = '10.0.0.5'
-		#self.hostmac = '\x5c\x26\x0a\x13\x77\x8a'
 		self.hostmac = ''
-		#self.hostmac = '\x00\x1d\xe6\xd8\x6f\x02'
-		#self.hostmacStr = '5c:26:0a:13:77:8a'
 		self.hostmacStr = ''
-		#self.hostmacStr = "00:1d:e6:d8:6f:02"
 		self.verbosity = 3
 		self.scksnd1 = None
 		self.scksnd2 = None

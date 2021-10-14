@@ -12,31 +12,19 @@ class Interface(Cmd):
     stop_event = None
     promptBase = "COYOTE"
     prompt = "\n\033[1m\033[31m" + promptBase + " >\033[0m "
-    intro = """\n\033[1m
-	                                                  ,a8b
-	                                              ,,od8  8
-	                                             d8'     8b
-	                                          d8'ba     aP'
-	                                       o8'         aP'
-	                                        YaaaP'    ba
-	                       \033[31mCOYOTE\033[0m\033[1m         Y8'         88
-	                                   ,8\"           `P
-	                              ,d8P'              ba
-	              ooood8888888P\"\"\"'                  P'
-	           ,od                                  8
-	        ,dP     o88o                           o'
-	       ,dP          8                          8
-	      ,d'   oo       8                       ,8
-	      $    d$\"8      8           Y    Y  o   8
-	     d    d  d8    od  \"\"boooaaaaoob   d\"\"8  8
-	     $    8  d  ood'-I   8         b  8   '8  b
-	     $   $  8  8     d  d8        `b  d    '8  b
-	      $  $ 8   b    Y  d8          8 ,P     '8  b
-	      `$$  Yb  b     8b 8b         8 8,      '8  o,
-	           `Y  b      8o  $$       d  b        b   $o
-	            8   '$     8$,,$\"      $   $o      '$o$$
-	            $o$$P\"                 $$o$
-	\033[0m"""
+    intro = """\n\033
+        .d8888b.                             888            
+        d88P  Y88b                            888            
+        888    888                            888            
+        888         .d88b.  888  888  .d88b.  888888 .d88b.  
+        888        d88""88b 888  888 d88""88b 888   d8P  Y8b 
+        888    888 888  888 888  888 888  888 888   88888888 
+        Y88b  d88P Y88..88P Y88b 888 Y88..88P Y88b. Y8b.     
+         "Y8888P"   "Y88P"   "Y88888  "Y88P"   "Y888 "Y8888  
+                                 888                         
+                            Y8b d88P                         
+                             "Y88P"      
+    \033[0m"""
 
     def __init__(self):
         Cmd.__init__(self)
