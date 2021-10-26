@@ -8,7 +8,7 @@
 ######################################################################
 
 from scapy.all import *
-from CoyoteTail import CoyoteTail
+from Logging import CoyoteTail
 
 
 ###################################################################

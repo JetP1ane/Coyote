@@ -1,18 +1,9 @@
 # coding=utf-8
-####################################################################
-##|# ----------- This is MANGLE, aka Coyote's core ----------- #|###
-##|# - It is responsible for handling the NAT Logic and the  - #|###
-##|# - Mangling of packets as they go through the interface  - #|###
-##|# --------------------------------------------------------- #|###
-##|# -   New modules for Layer 3 protocols can be added by   - #|###
-##|# - importing them and modifying the CAT (Coyote_Address_ - #|###
-##|# -          Translation) function ("else" part)          - #|###
-####################################################################
 
 from scapy.all import *
 from modARP import modARP
 from modICMP import modICMP
-from CoyoteTail import CoyoteTail
+from Logging import CoyoteTail
 
 
 ##########################################################
@@ -305,7 +296,7 @@ class PKTthread:
 			self.state = newState
 		else:
 			exit(
-				"PKTThread in unstable state : '" + self.state + "' - Look for the 'changeState' function in MANGLE.py")
+				"PKTThread in unstable state : '" + self.state + "' - Look for the 'changeState' function in NAT.py")
 
 	## Dump function used in logging ##
 	def threadDump(self):

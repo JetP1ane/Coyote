@@ -1,6 +1,8 @@
 # coding=utf-8
 
+import time
 import socket
+import subprocess
 from scapy.all import *
 
 
@@ -15,15 +17,28 @@ class Autoconf :
 		self.ifaceNetwork = "eth1"
 		self.sockHost = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
 		self.sockNetwork = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+
+
+	def flipNic(self):
+		print("Restarting Interface to initiate EAPOL negotiation...")
+		subprocess.run(["ifconfig", "eth0", "down"])
+		time.sleep(15)
+		subprocess.run(["ifconfig", "eth0", "up"])
+		time.sleep(15)
+		print("Network Interfaces restarted")
+
+
+	def startAutoconf(self):
+
+		self.flipNic()		# Disable/Enable Nic to restart host 802.1x negotiation
+
 		try:
 			self.sockHost.bind((self.ifaceHost, 0))
 			self.sockNetwork.bind((self.ifaceNetwork, 0))
 		except:
-			#exit("You need 2 physical network interfaces to use Coyote !")
 			print("You need 2 physical network interfaces to use Coyote !")
 		self.inputs = [self.sockHost]
 
-	def startAutoconf(self):
 		print("Trying to detect @mac and @ip of spoofed host...")
 		while self.conf == True :
 			print('Listening on Host NIC...')

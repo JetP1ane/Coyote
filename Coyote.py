@@ -3,9 +3,10 @@
 from sys import exit
 from pytun import *
 from scapy.all import *
-from MANGLE import *
-from CoyoteFangs import *
+from NAT import *
+from Rules import *
 from Autoconf import *
+from Interface import *
 import socket
 import select
 import time
@@ -32,6 +33,7 @@ class Coyote:
 		self.pktsCount = 0
 		self.LhostIface = 'eth0'
 		self.switchIface = 'eth1'
+		self.SSH = "52.116.192.61"
 
 	def createTap(self):
 		self.tap = TunTapDevice(flags=IFF_TAP, name='Coyote')
@@ -238,3 +240,7 @@ class Coyote:
 						last_mangled_request.remove(epkt)
 				else :
 					exit('WTH')
+
+if __name__ == '__main__':
+	app = Interface()
+	app.do_autoconf("")

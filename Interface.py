@@ -12,8 +12,8 @@ class Interface(Cmd):
     stop_event = None
     promptBase = "COYOTE"
     prompt = "\n\033[1m\033[31m" + promptBase + " >\033[0m "
-    intro = """\n\033
-        .d8888b.                             888            
+    intro = """\n
+	 .d8888b.                             888 
         d88P  Y88b                            888            
         888    888                            888            
         888         .d88b.  888  888  .d88b.  888888 .d88b.  
@@ -24,12 +24,11 @@ class Interface(Cmd):
                                  888                         
                             Y8b d88P                         
                              "Y88P"      
-    \033[0m"""
+    \n"""
 
     def __init__(self):
         Cmd.__init__(self)
 
-    ### TOOLBOX ###
     def hexToStr(self, hexstr):
         string = hexlify(hexstr).decode('ascii')
         return string[:2] + ":" + string[2:4] + ":" + string[4:6] + ":" + string[6:8] + ":" + string[

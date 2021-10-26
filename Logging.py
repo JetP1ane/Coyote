@@ -12,7 +12,7 @@ from sys import stdout
 ###########################################################################
 ### ---------------- Main component of CoyoteTail ---------------- ####
 ###########################################################################
-class CoyoteTail :
+class CoyoteTail:
 
 	def __init__(self, debugLevel=1) :
 		self.debug = debugLevel

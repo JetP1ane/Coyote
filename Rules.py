@@ -1,7 +1,7 @@
 # coding=utf-8
 
 from scapy.all import *
-from CoyoteTail import CoyoteTail
+from Logging import CoyoteTail
 
 class CoyoteFangs:
 
@@ -27,9 +27,6 @@ class CoyoteFangs:
 					self.userRules.remove(rule)
 					self.ruleCount = self.ruleCount - 1
 				return True
-		# if 'IP' in pkt and pkt[IP].src == '10.0.0.69':
-		# print('DEDANS')
-		# return True
 		return False
 
 	def changeVerbosity(self, debugLevel):
